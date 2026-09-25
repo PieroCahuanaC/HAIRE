@@ -32,6 +32,7 @@ export default function VacanteDetallePage({
   const [tab, setTab] = useState<Tab>("ranking")
   const [cargando, setCargando] = useState(true)
   const [noExiste, setNoExiste] = useState(false)
+  const [refetchTrigger, setRefetchTrigger] = useState(0)
 
   useEffect(() => {
     api
@@ -140,11 +141,18 @@ export default function VacanteDetallePage({
       </div>
 
       {tab === "ranking" ? (
-        <RankingView vacanteId={vacante.id} cargando={cargando} />
+        <RankingView
+          vacanteId={vacante.id}
+          cargando={cargando}
+          refetchTrigger={refetchTrigger}
+        />
       ) : (
         <CvUploader
           vacanteId={vacante.id}
-          onCompletado={() => setTab("ranking")}
+          onCompletado={() => {
+            setRefetchTrigger((prev) => prev + 1)
+            setTab("ranking")
+          }}
         />
       )}
     </div>

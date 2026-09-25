@@ -24,21 +24,28 @@ import { api } from "@/lib/api"
 export function RankingView({
   vacanteId,
   cargando: cargandoExterno = false,
+  refetchTrigger,
 }: {
   vacanteId: string
   cargando?: boolean
+  refetchTrigger?: number | string
 }) {
   const [candidatos, setCandidatos] = useState<Candidato[]>([])
   const [cargandoDatos, setCargandoDatos] = useState(true)
 
   useEffect(() => {
+    if (!vacanteId) {
+      setCandidatos([])
+      setCargandoDatos(false)
+      return
+    }
     setCargandoDatos(true)
     api
       .getCandidatosDeVacante(vacanteId)
       .then(setCandidatos)
       .catch(() => setCandidatos([]))
       .finally(() => setCargandoDatos(false))
-  }, [vacanteId])
+  }, [vacanteId, refetchTrigger])
 
   // La API ya devuelve ordenado por porcentaje desc.
   const recomendado = candidatos.find((c) => c.esRecomendado) ?? candidatos[0]

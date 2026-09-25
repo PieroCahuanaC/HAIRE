@@ -1,7 +1,7 @@
 // Cliente HTTP del backend Haire. Traduce las respuestas del backend (snake_case)
 // a los tipos que ya consume la UI (Vacante, Candidato) para no tocar los componentes.
 
-import { getToken } from "@/lib/auth"
+import { getToken, cerrarSesion } from "@/lib/auth"
 import type { Vacante, Candidato } from "@/lib/mock-data"
 import type { UsuarioSesion } from "@/lib/auth"
 
@@ -34,9 +34,17 @@ async function request<T>(
 
   let resp: Response
   try {
-    resp = await fetch(`${BASE_URL}${path}`, { ...options, headers })
-  } catch {
+    const signal = options.signal ?? AbortSignal.timeout(60000)
+    resp = await fetch(`${BASE_URL}${path}`, { ...options, headers, signal })
+  } catch (err: any) {
+    if (err?.name === "TimeoutError") {
+      throw new ApiError(408, "La solicitud tardó demasiado tiempo en responder.")
+    }
     throw new ApiError(0, "No se pudo conectar con el servidor. ¿El backend está corriendo?")
+  }
+
+  if (resp.status === 401 && auth) {
+    cerrarSesion()
   }
 
   if (!resp.ok) {

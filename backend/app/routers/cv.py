@@ -58,18 +58,23 @@ def upload_cv(
     usuario: Usuario = Depends(get_current_user),
 ) -> UploadResponse:
     """Recibe un PDF, extrae su texto, lo sube a Storage y crea el curriculum."""
-    if archivo.content_type != "application/pdf":
+    nombre_archivo = archivo.filename or ""
+    if not (nombre_archivo.lower().endswith(".pdf") or archivo.content_type == "application/pdf"):
         raise HTTPException(status_code=400, detail="El archivo debe ser un PDF")
 
     vacante = db.get(Vacante, id_vacante)
     if vacante is None:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    if vacante.id_usuario != usuario.id_usuario:
+        raise HTTPException(status_code=403, detail="No tienes permiso para subir CVs a esta vacante")
 
     contenido = archivo.file.read()
     if not contenido:
         raise HTTPException(status_code=400, detail="El archivo está vacío")
     if len(contenido) > _MAX_BYTES:
         raise HTTPException(status_code=413, detail="El PDF supera el límite de 10MB")
+    if not contenido.startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="El archivo no es un documento PDF válido")
 
     # Extracción de texto
     try:
@@ -134,6 +139,8 @@ def analizar_cv(
     vacante = db.get(Vacante, curriculum.id_vacante)
     if vacante is None:
         raise HTTPException(status_code=404, detail="Vacante asociada no encontrada")
+    if vacante.id_usuario != usuario.id_usuario:
+        raise HTTPException(status_code=403, detail="No tienes permiso para analizar este curriculum")
 
     # Requisitos de la vacante, separados por obligatoriedad
     reqs = db.execute(
@@ -171,8 +178,9 @@ def analizar_cv(
             not postulante.nombres or postulante.nombres == "Candidato sin nombre"
         ):
             partes = analisis.nombre_candidato.strip().split()
-            postulante.nombres = partes[0]
-            postulante.apellidos = " ".join(partes[1:]) or "(sin apellido)"
+            if partes:
+                postulante.nombres = partes[0]
+                postulante.apellidos = " ".join(partes[1:]) if len(partes) > 1 else "(sin apellido)"
         if analisis.correo and not postulante.correo:
             postulante.correo = analisis.correo
         if analisis.telefono and not postulante.telefono:

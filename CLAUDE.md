@@ -39,10 +39,6 @@ Todo esto desplegado — frontend y backend con URLs reales, no solo corriendo e
 ## Alcance del MVP de 48h — qué entra y qué NO
 
 **Entra:**
-<<<<<<< HEAD
-
-=======
->>>>>>> 33aed38fd30f646db7ace28bd874752d26989b55
 - Login básico
 - Crear vacante (formulario mínimo: título + habilidades + experiencia)
 - Subir 10-30 CVs a la vez (drag & drop, procesados en paralelo controlado)
@@ -52,10 +48,6 @@ Todo esto desplegado — frontend y backend con URLs reales, no solo corriendo e
 - Deploy real con URL pública
 
 **NO entra en esta fase (es parte del Acta completo, se hace en las 12 semanas después):**
-<<<<<<< HEAD
-
-=======
->>>>>>> 33aed38fd30f646db7ace28bd874752d26989b55
 - Transcripción de audio / diarización de entrevistas
 - Integración con Microsoft Teams
 - Exportar el reporte en PDF
@@ -69,8 +61,6 @@ señal de que me estoy desviando del alcance de la PoC.
 
 ---
 
-<<<<<<< HEAD
-=======
 ## Plan de fases de la PoC de 48h (por bloques de horas)
 
 **Bloque 1 — Horas 0 a 6: Cimientos en paralelo** (los 5 devs trabajan simultáneo, sin pisarse)
@@ -183,10 +173,6 @@ coincidir sin necesidad de mapeo.
 
 **Antes de proponer cualquier plan, corre estas verificaciones y repórtame el estado
 real:**
-<<<<<<< HEAD
-
-=======
->>>>>>> 33aed38fd30f646db7ace28bd874752d26989b55
 ```
 git status
 git log --oneline -10

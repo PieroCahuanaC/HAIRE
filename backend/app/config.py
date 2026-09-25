@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str = Field(alias="GROQ_API_KEY")
     groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
+    groq_fallback_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_FALLBACK_MODEL")
 
     # JWT
     jwt_secret: str = Field(alias="JWT_SECRET")

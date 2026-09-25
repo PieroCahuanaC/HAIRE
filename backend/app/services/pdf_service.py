@@ -18,8 +18,11 @@ def extraer_texto_de_pdf(pdf_bytes: bytes) -> str:
     lector = PdfReader(io.BytesIO(pdf_bytes))
     partes: list[str] = []
     for pagina in lector.pages:
-        texto = pagina.extract_text() or ""
-        if texto:
-            partes.append(texto)
+        try:
+            texto = pagina.extract_text() or ""
+            if texto:
+                partes.append(texto)
+        except Exception:
+            continue
     crudo = " ".join(partes)
     return _WHITESPACE.sub(" ", crudo).strip()

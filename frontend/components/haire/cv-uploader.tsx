@@ -86,20 +86,28 @@ export function CvUploader({
   const agregarArchivos = useCallback((fileList: FileList) => {
     const nuevos: ArchivoCV[] = []
     Array.from(fileList).forEach((file) => {
-      const esPdf = file.type === "application/pdf"
+      const nombreLower = file.name.toLowerCase()
+      const esPdf = file.type === "application/pdf" || nombreLower.endsWith(".pdf")
       const excedeTamano = file.size > MAX_BYTES
+      const estaVacio = file.size === 0
+
+      let errorMsg: string | undefined
+      if (!esPdf) {
+        errorMsg = "Solo se aceptan archivos PDF"
+      } else if (excedeTamano) {
+        errorMsg = "Supera el máximo de 10MB"
+      } else if (estaVacio) {
+        errorMsg = "El archivo está vacío (0 KB)"
+      }
+
       nuevos.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         nombre: file.name,
-        tamanoKb: Math.round(file.size / 1024),
-        progreso: !esPdf || excedeTamano ? 100 : 0,
-        estado: !esPdf || excedeTamano ? "error" : "en_cola",
-        error: !esPdf
-          ? "Solo se aceptan archivos PDF"
-          : excedeTamano
-            ? "Supera el máximo de 10MB"
-            : undefined,
-        file: !esPdf || excedeTamano ? undefined : file,
+        tamanoKb: Math.max(1, Math.round(file.size / 1024)),
+        progreso: errorMsg ? 100 : 0,
+        estado: errorMsg ? "error" : "en_cola",
+        error: errorMsg,
+        file: errorMsg ? undefined : file,
       })
     })
     setArchivos((prev) => [...prev, ...nuevos])
@@ -120,38 +128,61 @@ export function CvUploader({
     setArchivos((prev) => prev.filter((a) => a.id !== id))
   }
 
+  function reintentar(id: string) {
+    setArchivos((prev) =>
+      prev.map((a) => (a.id === id && a.file ? { ...a, estado: "en_cola", error: undefined, progreso: 0 } : a)),
+    )
+  }
+
   function actualizar(id: string, cambios: Partial<ArchivoCV>) {
     setArchivos((prev) => prev.map((a) => (a.id === id ? { ...a, ...cambios } : a)))
   }
 
-  // Sube y analiza cada CV en cola, secuencialmente (evita rate limits de Groq).
+  async function procesarArchivo(archivo: ArchivoCV): Promise<boolean> {
+    if (!archivo.file || !vacanteId) return false
+    try {
+      actualizar(archivo.id, { estado: "subiendo", progreso: 45 })
+      const { id_curriculum } = await api.uploadCv(vacanteId, archivo.file)
+
+      actualizar(archivo.id, { estado: "procesando", progreso: 85 })
+      await api.analizarCv(id_curriculum)
+
+      actualizar(archivo.id, { estado: "completado", progreso: 100 })
+      return true
+    } catch (err) {
+      actualizar(archivo.id, {
+        estado: "error",
+        progreso: 100,
+        error:
+          err instanceof ApiError
+            ? err.message
+            : "Error al procesar el archivo con IA",
+      })
+      return false
+    }
+  }
+
+  // Sube y analiza concurrentemente con un pool de 2 trabajadores para alta velocidad
   async function iniciarAnalisis() {
     if (!vacanteId) return
     setAnalizando(true)
     const enCola = archivos.filter((a) => a.estado === "en_cola" && a.file)
     let algunoCompletado = false
 
-    for (const archivo of enCola) {
-      try {
-        actualizar(archivo.id, { estado: "subiendo", progreso: 40 })
-        const { id_curriculum } = await api.uploadCv(vacanteId, archivo.file!)
+    const CONCURRENCIA = 2
+    const cola = [...enCola]
 
-        actualizar(archivo.id, { estado: "procesando", progreso: 100 })
-        await api.analizarCv(id_curriculum)
-
-        actualizar(archivo.id, { estado: "completado" })
-        algunoCompletado = true
-      } catch (err) {
-        actualizar(archivo.id, {
-          estado: "error",
-          progreso: 100,
-          error:
-            err instanceof ApiError
-              ? err.message
-              : "Error al procesar el archivo",
-        })
+    async function trabajador() {
+      while (cola.length > 0) {
+        const item = cola.shift()
+        if (!item) break
+        const exito = await procesarArchivo(item)
+        if (exito) algunoCompletado = true
       }
     }
+
+    const trabajadores = Array.from({ length: Math.min(CONCURRENCIA, cola.length) }).map(() => trabajador())
+    await Promise.all(trabajadores)
 
     setAnalizando(false)
     if (algunoCompletado) onCompletado?.()
@@ -252,7 +283,17 @@ export function CvUploader({
                       </span>
                     </div>
                     {a.estado === "error" ? (
-                      <p className="mt-1 text-xs text-destructive">{a.error}</p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <p className="text-xs text-destructive">{a.error}</p>
+                        {a.file && (
+                          <button
+                            onClick={() => reintentar(a.id)}
+                            className="text-xs font-medium text-brand hover:underline"
+                          >
+                            Reintentar
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
@@ -279,7 +320,8 @@ export function CvUploader({
                   </div>
                   <button
                     onClick={() => eliminar(a.id)}
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    disabled={a.estado === "subiendo" || a.estado === "procesando"}
+                    className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:pointer-events-none"
                     aria-label={`Eliminar ${a.nombre}`}
                   >
                     <X className="size-4" />
